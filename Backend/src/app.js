@@ -1,10 +1,12 @@
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
+const morgan = require("morgan");
 
 const app = express();
 
 app.use(express.json());
+app.use(morgan("dev"));
 app.use(cookieParser());
 app.use(
   cors({
@@ -16,6 +18,7 @@ app.use(
 /* require all the routes here */
 const authRouter = require("./routes/auth.routes");
 const interviewRouter = require("./routes/interview.routes");
+// const morgan = require("morgan");
 
 // /* using all the routes here */
 app.use("/api/auth", authRouter);

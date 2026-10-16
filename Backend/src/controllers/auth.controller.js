@@ -24,21 +24,40 @@ const registerUserController = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
-    const hash = await bcrypt.hash(password, 10);
+    const hashPassword = await bcrypt.hash(password, 10);
 
     const user = await UserModel.create({
       username,
       email,
-      password: hash,
+      password: hashPassword,
     });
 
-    const token = jwt.sign(
+    // const token = jwt.sign(
+    //   { id: user._id, username: user.username },
+    //   process.env.JWT_SECRET,
+    //   { expiresIn: "1d" },
+    // );
+
+    // res.cookie("token", token);
+
+    const accessToken = jwt.sign(
       { id: user._id, username: user.username },
       process.env.JWT_SECRET,
-      { expiresIn: "1d" },
+      { expiresIn: "15m" },
     );
 
-    res.cookie("token", token);
+    const refreshToken = jwt.sign(
+      { id: user._id, username: user.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true, // To prevent client-side JavaScript from accessing the cookie
+      secure: true, // Set to true if using HTTPS
+      sameSite: "strict", // To prevent CSRF attacks
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
 
     res.status(201).json({
       message: "User registered successfully",
@@ -47,6 +66,8 @@ const registerUserController = async (req, res) => {
         username: user.username,
         email: user.email,
       },
+      // token,
+      accessToken,
     });
   } catch (error) {
     console.error("Error registering user:", error);
@@ -85,7 +106,7 @@ async function loginUserController(req, res) {
       { expiresIn: "1d" },
     );
 
-    res.cookie("token", token);
+    // res.cookie("token", token);
     res.status(200).json({
       message: "User loggedIn successfully.",
       user: {
@@ -93,6 +114,7 @@ async function loginUserController(req, res) {
         username: user.username,
         email: user.email,
       },
+      token,
     });
   } catch (error) {
     console.error("Error logging in user:", error);
@@ -142,9 +164,54 @@ async function getMeController(req, res) {
   });
 }
 
+/**
+ * @name refreshTokenController
+ * @description refresh the access token using refresh token
+ * @access public
+ */
+const refreshTokenController = async (req, res) => {
+  try {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+      return res.status(401).json({ message: "Refresh token not provided" });
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+
+    const accessToken = jwt.sign(
+      { id: decoded.id, username: decoded.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "15m" },
+    );
+
+    const newRefreshToken = jwt.sign(
+      { id: decoded.id, username: decoded.username },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    res.status(200).json({
+      message: "Access token refreshed successfully",
+      accessToken,
+    });
+  } catch (error) {
+    console.error("Error refreshing token:", error);
+    res.status(401).json({ error: "Invalid refresh token" });
+  }
+};
+
 module.exports = {
   registerUserController,
   loginUserController,
   getMeController,
   logoutUserController,
+  refreshTokenController,
 };

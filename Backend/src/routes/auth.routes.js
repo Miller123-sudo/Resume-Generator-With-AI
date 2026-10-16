@@ -36,4 +36,11 @@ authRouter.get(
   authController.getMeController,
 );
 
+/**
+ * @rouete GET /api/auth/refresh-token
+ * @description refresh the access token using refresh token
+ * @access public
+ */
+authRouter.get("/refresh-token", authController.refreshTokenController);
+
 module.exports = authRouter;
