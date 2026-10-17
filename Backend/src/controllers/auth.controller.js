@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 
 const TokenBlacklistModel = require("../models/blacklist.model");
 const UserModel = require("../models/user.model");
+const { default: SessionModel } = require("../models/session.model");
 
 /**
  * @route POST /api/auth/register
@@ -48,7 +49,7 @@ const registerUserController = async (req, res) => {
 
     const refreshToken = jwt.sign(
       { id: user._id, username: user.username },
-      process.env.JWT_SECRET,
+      process.env.JWT_REFRESH_TOKEN_SECRET,
       { expiresIn: "7d" },
     );
 
@@ -100,13 +101,36 @@ async function loginUserController(req, res) {
       });
     }
 
-    const token = jwt.sign(
+    const refreshToken = jwt.sign(
+      { id: user._id, username: user.username },
+      process.env.JWT_REFRESH_TOKEN_SECRET,
+      { expiresIn: "7d" },
+    );
+
+    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+    const session = await SessionModel.create({
+      user: user._id,
+      refreshTokenHash,
+      ip: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+
+    const accessToken = jwt.sign(
       { id: user._id, username: user.username },
       process.env.JWT_SECRET,
       { expiresIn: "1d" },
     );
 
     // res.cookie("token", token);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true, // To prevent client-side JavaScript from accessing the cookie
+      secure: true, // Set to true if using HTTPS
+      sameSite: "strict", // To prevent CSRF attacks
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
     res.status(200).json({
       message: "User loggedIn successfully.",
       user: {
@@ -114,7 +138,7 @@ async function loginUserController(req, res) {
         username: user.username,
         email: user.email,
       },
-      token,
+      accessToken,
     });
   } catch (error) {
     console.error("Error logging in user:", error);
@@ -177,7 +201,10 @@ const refreshTokenController = async (req, res) => {
       return res.status(401).json({ message: "Refresh token not provided" });
     }
 
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    const decoded = jwt.verify(
+      refreshToken,
+      process.env.JWT_REFRESH_TOKEN_SECRET,
+    );
 
     const accessToken = jwt.sign(
       { id: decoded.id, username: decoded.username },
@@ -187,7 +214,7 @@ const refreshTokenController = async (req, res) => {
 
     const newRefreshToken = jwt.sign(
       { id: decoded.id, username: decoded.username },
-      process.env.JWT_SECRET,
+      process.env.JWT_REFRESH_TOKEN_SECRET,
       { expiresIn: "7d" },
     );
 
