@@ -4,5 +4,9 @@
  * @returns {Function} - The wrapped function
  */
 module.exports = (fn) => (req, res, next) => {
-  Promise.resolve(fn(req, res, next)).catch(next);
+  Promise.resolve(fn(req, res, next)).catch((err) => {
+    console.log("error: ", err);
+    next(err);
+  });
+  // fn(req, res, next).catch((err) => next(err));
 };

@@ -3,6 +3,7 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const morgan = require("morgan");
 const AppError = require("./utils/appError");
+const globalErrorHandler = require("./middlewares/errorhamdling.middleware");
 
 const app = express();
 
@@ -38,14 +39,6 @@ app.all("/*splat", (req, res, next) => {
  * This middleware will catch any errors that occur in the application and send a structured response to the client.
  * It sets the status code and status message based on the error, defaulting to 500 for server errors.
  */
-app.use((err, req, res, next) => {
-  err.statusCode = err.statusCode || 500;
-  err.status = err.status || "error";
-
-  res.status(err.statusCode).json({
-    status: err.status,
-    message: err.message,
-  });
-});
+app.use(globalErrorHandler);
 
 module.exports = app;
