@@ -5,7 +5,7 @@
  */
 module.exports = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch((err) => {
-    console.log("error: ", err);
+    console.log("error caught in catchAsync: ", err);
     next(err);
   });
   // fn(req, res, next).catch((err) => next(err));

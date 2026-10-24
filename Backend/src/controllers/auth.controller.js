@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const TokenBlacklistModel = require("../models/blacklist.model");
 const UserModel = require("../models/user.model");
 const { default: SessionModel } = require("../models/session.model");
+const catchAsync = require("../utils/catchAsync");
 
 /**
  * @route POST /api/auth/register
@@ -90,70 +91,70 @@ const registerUserController = async (req, res) => {
  * @description login a user, expects email and password in the request body
  * @access Public
  */
-async function loginUserController(req, res) {
-  try {
-    const { email, password } = req.body;
+const loginUserController = catchAsync(async (req, res) => {
+  // try {
+  const { email, password } = req.body;
 
-    const user = await UserModel.findOne({ email });
+  const user = await UserModel.findOne({ email });
 
-    if (!user) {
-      return res.status(400).json({
-        message: "Invalid email or password",
-      });
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid) {
-      return res.status(400).json({
-        message: "Invalid email or password",
-      });
-    }
-
-    const refreshToken = jwt.sign(
-      { id: user._id, username: user.username },
-      process.env.JWT_REFRESH_TOKEN_SECRET,
-      { expiresIn: "7d" },
-    );
-
-    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
-
-    const session = await SessionModel.create({
-      user: user._id,
-      refreshTokenHash,
-      ip: req.ip,
-      userAgent: req.headers["user-agent"],
+  if (!user) {
+    return res.status(400).json({
+      message: "Invalid email or password",
     });
-
-    const accessToken = jwt.sign(
-      { id: user._id, username: user.username, sessionId: session._id },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" },
-    );
-
-    // res.cookie("token", token);
-
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true, // To prevent client-side JavaScript from accessing the cookie
-      secure: true, // Set to true if using HTTPS
-      sameSite: "strict", // To prevent CSRF attacks
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    });
-
-    res.status(200).json({
-      message: "User loggedIn successfully.",
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-      },
-      accessToken,
-    });
-  } catch (error) {
-    console.error("Error logging in user:", error);
-    res.status(500).json({ error: error });
   }
-}
+
+  const isPasswordValid = await bcrypt.compare(password, user.password);
+
+  if (!isPasswordValid) {
+    return res.status(400).json({
+      message: "Invalid email or password",
+    });
+  }
+
+  const refreshToken = jwt.sign(
+    { id: user._id, username: user.username },
+    process.env.JWT_REFRESH_TOKEN_SECRET,
+    { expiresIn: "7d" },
+  );
+
+  const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+  const session = await SessionModel.create({
+    user: user._id,
+    refreshTokenHash,
+    ip: req.ip,
+    userAgent: req.headers["user-agent"],
+  });
+
+  const accessToken = jwt.sign(
+    { id: user._id, username: user.username, sessionId: session._id },
+    process.env.JWT_SECRET,
+    { expiresIn: "1d" },
+  );
+
+  // res.cookie("token", token);
+
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true, // To prevent client-side JavaScript from accessing the cookie
+    secure: true, // Set to true if using HTTPS
+    sameSite: "strict", // To prevent CSRF attacks
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  });
+
+  res.status(200).json({
+    message: "User loggedIn successfully.",
+    user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+    },
+    accessToken,
+  });
+  // } catch (error) {
+  //   console.error("Error logging in user:", error);
+  //   res.status(500).json({ error: error });
+  // }
+});
 
 /**
  * @name logoutUserController

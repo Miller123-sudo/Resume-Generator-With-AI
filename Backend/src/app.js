@@ -3,13 +3,22 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const morgan = require("morgan");
 const helmet = require("helmet");
-const xss = require("xss-clean");
-const hpp = require("hpp");
+// const xss = require("xss-clean");
+// const hpp = require("hpp");
+// const mongosanitize = require("express-mongo-sanitize");
 
 const AppError = require("./utils/appError");
 const globalErrorHandler = require("./middlewares/errorhamdling.middleware");
+const mongosanitize = require("./middlewares/sanitize.middleware");
 
 const app = express();
+
+/**
+ * Other Middlewares
+ * These middlewares handle JSON parsing, logging, cookie parsing, and CORS configuration.
+ * They are essential for processing incoming requests and managing cross-origin resource sharing.
+ */
+app.use(express.json({ limit: "10kb" })); // Body parser, reading data from body into req.body
 
 /**
  * Security Middlewares
@@ -19,19 +28,28 @@ const app = express();
 app.use(helmet()); // Set security HTTP headers
 
 // XSS-clean is a middleware that sanitizes user input to prevent cross-site scripting (XSS) attacks.
-app.use(xss()); // Data sanitization against XSS
-
-// HPP (HTTP Parameter Pollution) middleware protects against HTTP parameter pollution attacks by removing duplicate query parameters.
-app.use(hpp()); // Prevent HTTP Parameter Pollution
+// Example: If a user tries to inject a script into a form input, this middleware will sanitize it and prevent the script from executing.
+// If someone try to input a HTML in a field, this middleware converts html tags into string.
+// app.use(xss()); // Data sanitization against XSS
 
 /**
- * Other Middlewares
- * These middlewares handle JSON parsing, logging, cookie parsing, and CORS configuration.
- * They are essential for processing incoming requests and managing cross-origin resource sharing.
+ * Data Sanitization Middlewares
+ * These middlewares help to sanitize user input and prevent NoSQL injection attacks.
+ * They remove any malicious code or characters from the input data before it is processed by the application.
+ * Example: If a user tries to inject a NoSQL query into a form input, this middleware will sanitize it and prevent the query from executing.
+ * Ex: {
+ *     "email": {"$gt": ""},
+ *     "password": "12345678"
+ * }
  */
-app.use(express.json({ limit: "10kb" })); // Body parser, reading data from body into req.body
+// app.use(mongosanitize()); // Data sanitization against NoSQL query injection
+app.use(mongosanitize); // Data sanitization against NoSQL query injection
+
+// HPP (HTTP Parameter Pollution) middleware protects against HTTP parameter pollution attacks by removing duplicate query parameters.
+// app.use(hpp()); // Prevent HTTP Parameter Pollution
+
 if (process.env.NODE_ENV === "development") {
-  app.use(morgan("combined")); // HTTP request logger middleware for node.js
+  app.use(morgan("dev")); // HTTP request logger middleware for node.js
 } else {
   app.use(morgan("combined")); // HTTP request logger middleware for node.js
 }
