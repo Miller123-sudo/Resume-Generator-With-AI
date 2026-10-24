@@ -157,7 +157,7 @@ async function loginUserController(req, res) {
 
 /**
  * @name logoutUserController
- * @description clear token from user cookie and add the token in blacklist
+ * @description clear token from user cookie and add the token in blacklist and also revoke the session of the user
  * @access public
  */
 async function logoutUserController(req, res) {
@@ -197,7 +197,7 @@ async function logoutUserController(req, res) {
 
 /**
  * @name logoutAllUserController
- * @description clear token from user cookie and add the token in blacklist
+ * @description clear token from user cookie and add the token in blacklist and also revoke all the sessions of the user
  * @access public
  */
 async function logoutAllUserController(req, res) {
@@ -228,6 +228,7 @@ async function logoutAllUserController(req, res) {
     });
   } catch (error) {
     console.error("Error logging out user from all devices:", error);
+
     res
       .status(500)
       .json({ message: "Error logging out user from all devices" });

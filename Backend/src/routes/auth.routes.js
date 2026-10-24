@@ -26,11 +26,11 @@ authRouter.post("/login", authController.loginUserController);
 authRouter.get("/logout", authController.logoutUserController);
 
 /**
- * @route GET /api/auth/logout
- * @description clear token from user cookie and add the token in blacklist
+ * @route GET /api/auth/logout-all
+ * @description clear token from user cookie and add the token in blacklist and also revoke all the sessions of the user
  * @access public
  */
-authRouter.get("/logout", authController.logoutAllUserController);
+authRouter.get("/logout-all", authController.logoutAllUserController);
 
 /**
  * @route GET /api/auth/get-me
