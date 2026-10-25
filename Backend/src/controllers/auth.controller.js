@@ -1,10 +1,12 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { generateSecret, verify, generateURI } = require("otplib");
 
 const TokenBlacklistModel = require("../models/blacklist.model");
 const UserModel = require("../models/user.model");
 const { default: SessionModel } = require("../models/session.model");
 const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/appError");
 
 /**
  * @route POST /api/auth/register
@@ -93,9 +95,9 @@ const registerUserController = async (req, res) => {
  */
 const loginUserController = catchAsync(async (req, res) => {
   // try {
-  const { email, password } = req.body;
+  const { email, password, twoFactorCode } = req.body;
 
-  const user = await UserModel.findOne({ email });
+  const user = await UserModel.findOne({ email }).select("-__v");
 
   if (!user) {
     return res.status(400).json({
@@ -109,6 +111,23 @@ const loginUserController = catchAsync(async (req, res) => {
     return res.status(400).json({
       message: "Invalid email or password",
     });
+  }
+
+  if (user.twoFactorEnabled) {
+    if (!twoFactorCode || typeof twoFactorCode !== "string")
+      return next(
+        new AppError("Two-factor authentication code is required", 400),
+      );
+
+    if (!user.twoFactorSecret)
+      return next(
+        new AppError(
+          "Two-factor authentication is not set up or misconfigured for this user!",
+          400,
+        ),
+      );
+
+    // Todo: Verify the provided two-factor authentication code using otplib
   }
 
   const refreshToken = jwt.sign(
@@ -143,11 +162,12 @@ const loginUserController = catchAsync(async (req, res) => {
 
   res.status(200).json({
     message: "User loggedIn successfully.",
-    user: {
-      id: user._id,
-      username: user.username,
-      email: user.email,
-    },
+    // user: {
+    //   id: user._id,
+    //   username: user.username,
+    //   email: user.email,
+    // },
+    user,
     accessToken,
   });
   // } catch (error) {
@@ -247,11 +267,12 @@ async function getMeController(req, res) {
 
     res.status(200).json({
       message: "User details fetched successfully",
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-      },
+      // user: {
+      //   id: user._id,
+      //   username: user.username,
+      //   email: user.email,
+      // },
+      user,
     });
   } catch (error) {
     console.error("Error fetching user details:", error);
@@ -322,6 +343,85 @@ const refreshTokenController = async (req, res) => {
   }
 };
 
+/**
+ * @name twoFASetupController
+ * @description Setup two-factor authentication for the user. it will generate a secret and otpauth url for the user to scan and setup 2FA.
+ * @access private
+ */
+const twoFASetupController = catchAsync(async (req, res, next) => {
+  if (!req.user) {
+    return next(new AppError("User not authenticated", 401));
+  }
+
+  const user = await UserModel.findById(req.user.id);
+  if (!user) {
+    return next(new AppError("User not found", 404));
+  }
+
+  const secret = generateSecret(); // Generate a unique secret for the user. This secret will be used to generate time-based one-time passwords (TOTPs) for two-factor authentication.
+  const issuer = "interview-ai"; // Replace with your application name.
+  const otpauthUrl = generateURI({
+    issuer,
+    label: user.email,
+    secret,
+  }); // Generate the otpauth URL for QR code generation
+
+  user.twoFactorSecret = secret; // Store the secret in the user's record in the database
+  user.twoFactorEnabled = false; // Set to true after user verifies the 2FA code
+  await user.save();
+
+  return res.status(200).json({
+    message: "Two-factor authentication setup initiated",
+    otpauthUrl, // Send the otpauth URL to the client for QR code generation
+    secret, // Optionally send the secret to the client for manual entry
+  });
+});
+
+/**
+ * @name twoFAVerifyController
+ * @description Verify two-factor authentication for the user. it will verify the code with a secret.
+ * @access private
+ */
+const twoFAVerifyController = catchAsync(async (req, res, next) => {
+  if (!req.user) {
+    return next(new AppError("User not authenticated", 401));
+  }
+
+  const user = await UserModel.findById(req.user.id);
+  if (!user) {
+    return next(new AppError("User not found", 404));
+  }
+
+  const { toFACode } = req.body;
+  if (!toFACode) {
+    return next(new AppError("TwoFACode not found!", 404));
+  }
+  console.log("user: ", user.twoFactorSecret);
+  console.log("toFACode: ", toFACode);
+
+  if (!user.twoFactorSecret)
+    return next(
+      new AppError(
+        "You don't have 2FA setup done yet! please do it first.",
+        400,
+      ),
+    );
+
+  const isValidTwoFACode = await verify({
+    secret: user.twoFactorSecret,
+    token: toFACode,
+  });
+  if (!isValidTwoFACode) return next(new AppError("Invalid 2FA code!", 400));
+
+  user.twoFactorEnabled = true;
+  await user.save();
+
+  res.status(200).json({
+    message: "2FA successfull.",
+    toFactorEnabled: user.toFactorEnabled,
+  });
+});
+
 module.exports = {
   registerUserController,
   loginUserController,
@@ -329,4 +429,6 @@ module.exports = {
   logoutUserController,
   logoutAllUserController,
   refreshTokenController,
+  twoFASetupController,
+  twoFAVerifyController,
 };

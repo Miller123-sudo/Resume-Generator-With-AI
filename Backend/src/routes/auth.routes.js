@@ -19,6 +19,28 @@ authRouter.post("/register", authController.registerUserController);
 authRouter.post("/login", authController.loginUserController);
 
 /**
+ * @route POST /api/auth/2fa-setup
+ * @description Setup two-factor authentication for the user
+ * @access Private
+ */
+authRouter.post(
+  "/2fa-setup",
+  authMiddleware.authUser,
+  authController.twoFASetupController,
+);
+
+/**
+ * @route POST /api/auth/2fa-verify
+ * @description verify two-factor authentication for the user
+ * @access Private
+ */
+authRouter.post(
+  "/2fa-verify",
+  authMiddleware.authUser,
+  authController.twoFAVerifyController,
+);
+
+/**
  * @route GET /api/auth/logout
  * @description clear token from user cookie and add the token in blacklist
  * @access public
